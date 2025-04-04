@@ -7,6 +7,7 @@ from database import (
 
 st.set_page_config(page_title="Smart Chatbot", layout="wide")
 
+
 # --- CUSTOM CSS ---
 st.markdown("""
     <style>
@@ -172,3 +173,7 @@ if "user_email" in st.session_state:
                 st.session_state.chat_stage = "start"
                 st.session_state.user_choice = None
                 st.rerun()
+
+
+
+
