@@ -1,0 +1,7 @@
+[theme]
+base="dark"  # Options: "light" or "dark"
+primaryColor="#ff7043"
+backgroundColor="#121212"
+secondaryBackgroundColor="#1e1e1e"
+textColor="#ffffff"
+font="sans serif"
