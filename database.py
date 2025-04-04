@@ -1,68 +1,62 @@
 import sqlite3
-import bcrypt
+from passlib.hash import pbkdf2_sha256
 from datetime import datetime
 
-# --- DATABASE SETUP ---
-conn = sqlite3.connect('chatbot_users.db', check_same_thread=False)
+# DB SETUP
+conn = sqlite3.connect("users.db", check_same_thread=False)
 cursor = conn.cursor()
 
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL
-    )
-''')
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    email TEXT PRIMARY KEY,
+    password TEXT
+)
+""")
 
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS chat_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT,
-        role TEXT,
-        message TEXT,
-        timestamp TEXT
-    )
-''')
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS chats (
+    email TEXT,
+    role TEXT,
+    message TEXT,
+    timestamp TEXT
+)
+""")
 conn.commit()
 
-# --- FUNCTIONS ---
+# AUTHENTICATION
 def signup_user(email, password):
-    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
-    try:
-        cursor.execute("INSERT INTO users (email, password_hash) VALUES (?, ?)", (email, hashed))
-        conn.commit()
-        return True
-    except sqlite3.IntegrityError:
+    cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
+    if cursor.fetchone():
         return False
+    hashed_pw = pbkdf2_sha256.hash(password)
+    cursor.execute("INSERT INTO users (email, password) VALUES (?, ?)", (email, hashed_pw))
+    conn.commit()
+    return True
 
 def login_user(email, password):
-    cursor.execute("SELECT password_hash FROM users WHERE email = ?", (email,))
+    cursor.execute("SELECT password FROM users WHERE email = ?", (email,))
     result = cursor.fetchone()
-    if result and bcrypt.checkpw(password.encode(), result[0]):
-        return True
+    if result:
+        return pbkdf2_sha256.verify(password, result[0])
     return False
 
+# MESSAGES
 def save_message(email, role, message):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute("INSERT INTO chat_history (email, role, message, timestamp) VALUES (?, ?, ?, ?)",
-                   (email, role, message, timestamp))
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("INSERT INTO chats (email, role, message, timestamp) VALUES (?, ?, ?, ?)",
+                   (email, role, message, now))
     conn.commit()
 
 def get_chat_dates(email):
-    cursor.execute("SELECT DISTINCT DATE(timestamp) FROM chat_history WHERE email = ? ORDER BY timestamp DESC", (email,))
+    cursor.execute("SELECT DISTINCT DATE(timestamp) FROM chats WHERE email = ?", (email,))
     return [row[0] for row in cursor.fetchall()]
 
 def get_history_by_date(email, date):
-    cursor.execute("""
-        SELECT role, message, timestamp 
-        FROM chat_history 
-        WHERE email = ? AND DATE(timestamp) = ? 
-        ORDER BY timestamp
-    """, (email, date))
+    cursor.execute("SELECT role, message, timestamp FROM chats WHERE email = ? AND DATE(timestamp) = ?", (email, date))
     return cursor.fetchall()
 
 def delete_history(email):
-    cursor.execute("DELETE FROM chat_history WHERE email = ?", (email,))
+    cursor.execute("DELETE FROM chats WHERE email = ?", (email,))
     conn.commit()
 
 def close_connection():
